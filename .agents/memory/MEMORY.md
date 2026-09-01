@@ -1,0 +1,1 @@
+- [PDF processing in this workspace](pdf-processing.md) — use the managed Python package flow and `uv run` for PyMuPDF; direct pip installs are blocked by the immutable environment.
