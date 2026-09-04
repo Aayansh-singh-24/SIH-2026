@@ -63,20 +63,34 @@ const officerNav = [
 function cn(...classes: Array<string | false | undefined>) { return classes.filter(Boolean).join(' '); }
 
 function StatusDot({ status = 'Online' }: { status?: string }) {
-  const color = status === 'Online' || status === 'Verified' ? 'bg-[#71885b]' : status === 'Degraded' || status === 'Pending' ? 'bg-[#b27a3d]' : 'bg-[#a34e42]';
+  const isOnline = status === 'Online' || status === 'Verified';
+  const isWarn = status === 'Degraded' || status === 'Pending';
+  const color = isOnline
+    ? 'bg-[#22c55e] shadow-[0_0_6px_#22c55e]'
+    : isWarn
+    ? 'bg-[#f59e0b] shadow-[0_0_6px_#f59e0b]'
+    : 'bg-[#ef4444] shadow-[0_0_6px_#ef4444]';
   return <span className={cn('inline-block h-2 w-2 rounded-full', color)} />;
 }
 
-function Wordmark({ light = false }: { light?: boolean }) {
-  return <div className={cn('flex items-center gap-3', light ? 'text-[#efe8d5]' : 'text-[#344128]')}>
-    <span className={cn('grid h-9 w-9 place-items-center border', light ? 'border-[#a5ad7c] bg-[#5c6a42]' : 'border-[#718052] bg-[#e6e1c7]')}>
-      <Hexagon size={19} strokeWidth={1.7} />
+function Wordmark({ light = true }: { light?: boolean }) {
+  return <div className="flex items-center gap-3 text-[#f8fafc]">
+    <span className="grid h-9 w-9 place-items-center border border-[#22c55e]/60 bg-[#0e2417] text-[#4ade80] shadow-[0_0_12px_rgba(34,197,94,0.35)]">
+      <Hexagon size={20} strokeWidth={2} />
     </span>
-    <span><span className="block font-mono text-[10px] tracking-[.22em] opacity-70">INDIA COMMAND NETWORK</span><span className="block text-[17px] font-extrabold tracking-[.15em]">PRAHARI NETRA</span></span>
+    <span>
+      <span className="block font-mono text-[9px] font-bold tracking-[.25em] text-[#86efac]">DEFENSE COMMAND NETWORK</span>
+      <span className="block font-mono text-[16px] font-extrabold tracking-[.18em] text-[#f8fafc]">PRAHARI NETRA</span>
+    </span>
   </div>;
 }
 
-function LocalStatus() { return <span className="local-status"><CircleDot size={10} /> LOCAL INSTANCE · RECORDED SOURCES</span>; }
+function LocalStatus() {
+  return <span className="inline-flex items-center gap-2 border border-[#1f3827] bg-[#0c1811] px-2.5 py-1 font-mono text-[10px] font-semibold text-[#86efac]">
+    <span className="h-1.5 w-1.5 rounded-full bg-[#22c55e] shadow-[0_0_5px_#22c55e]" />
+    AIR-GAPPED // SECURE TELEMETRY
+  </span>;
+}
 
 
 
@@ -107,7 +121,7 @@ const borderPoints = [
   { id: 'ASM', label: 'Assam', x: 76, y: 61, cameras: ['PN-ASM-04', 'PN-ASM-07'] },
 ];
 
-const CAMERA_API = 'http://127.0.0.1:8000';
+const CAMERA_API = '/ai-api';
 
 type LiveDetection = { class: 'PERSON' | 'VEHICLE'; confidence: number; bbox: [number, number, number, number] };
 
@@ -165,66 +179,146 @@ function CameraFeed({ cameraId, thermal = false, aiEnabled = true, className = '
     if (!video || !canvas) return;
     const draw = () => {
       const rect = video.getBoundingClientRect();
-      if (!video.videoWidth || !rect.width) return;
+      if (!video.videoWidth || !rect.width || !rect.height) return;
       const dpr = window.devicePixelRatio || 1;
-      canvas.width = Math.max(1, Math.round(rect.width*dpr)); canvas.height = Math.max(1, Math.round(rect.height*dpr));
-      canvas.style.width = `${rect.width}px`; canvas.style.height = `${rect.height}px`;
-      const ctx = canvas.getContext('2d'); if (!ctx) return;
-      ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,rect.width,rect.height);
-      const scale = Math.max(rect.width/video.videoWidth, rect.height/video.videoHeight);
-      const rw = video.videoWidth*scale, rh = video.videoHeight*scale, ox=(rect.width-rw)/2, oy=(rect.height-rh)/2;
-      detections.forEach((d) => { const [x,y,w,h]=d.bbox; const bx=x*scale+ox, by=y*scale+oy, bw=w*scale, bh=h*scale; ctx.strokeStyle=d.class==='PERSON'?'#c7d890':'#d5af6c'; ctx.lineWidth=2; ctx.strokeRect(bx,by,bw,bh); const label=`${d.class} ${(d.confidence*100).toFixed(1)}%`; ctx.font='10px monospace'; const tw=ctx.measureText(label).width+10; const ly=Math.max(16,by); ctx.fillStyle=d.class==='PERSON'?'#314931':'#57462f'; ctx.fillRect(bx,ly-16,tw,16); ctx.fillStyle='#eef2dc'; ctx.fillText(label,bx+5,ly-5); });
+      canvas.width = Math.max(1, Math.round(rect.width * dpr));
+      canvas.height = Math.max(1, Math.round(rect.height * dpr));
+      canvas.style.width = `${rect.width}px`;
+      canvas.style.height = `${rect.height}px`;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, rect.width, rect.height);
+      if (!aiEnabled) return;
+      const scale = Math.max(rect.width / video.videoWidth, rect.height / video.videoHeight);
+      const rw = video.videoWidth * scale, rh = video.videoHeight * scale;
+      const ox = (rect.width - rw) / 2, oy = (rect.height - rh) / 2;
+      const ratio = rw / 640;
+      detections.forEach((d) => {
+        const [x, y, w, h] = d.bbox;
+        const bx = x * ratio + ox, by = y * ratio + oy, bw = w * ratio, bh = h * ratio;
+        ctx.strokeStyle = d.class === 'PERSON' ? '#c7d890' : '#d5af6c';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(bx, by, bw, bh);
+        const label = `${d.class} ${(d.confidence * 100).toFixed(1)}%`;
+        ctx.font = '10px monospace';
+        const tw = ctx.measureText(label).width + 10;
+        const ly = Math.max(16, by);
+        ctx.fillStyle = d.class === 'PERSON' ? '#314931' : '#57462f';
+        ctx.fillRect(bx, ly - 16, tw, 16);
+        ctx.fillStyle = '#eef2dc';
+        ctx.fillText(label, bx + 5, ly - 5);
+      });
     };
-    const observer = new ResizeObserver(draw); observer.observe(video); video.addEventListener('loadedmetadata', draw); const id=window.setInterval(draw,250);
-    return () => { observer.disconnect(); video.removeEventListener('loadedmetadata', draw); window.clearInterval(id); };
-  }, [detections]);
+    const observer = new ResizeObserver(draw);
+    observer.observe(video);
+    video.addEventListener('loadedmetadata', draw);
+    video.addEventListener('play', draw);
+    const id = window.setInterval(draw, 100);
+    return () => {
+      observer.disconnect();
+      video.removeEventListener('loadedmetadata', draw);
+      video.removeEventListener('play', draw);
+      window.clearInterval(id);
+    };
+  }, [detections, aiEnabled]);
 
-  return <div className={cn('camera-feed-shell relative', className)}>
-    {!sourceError ? <video ref={videoRef} className={cn('camera-recording', thermal && 'camera-recording-thermal')} controls autoPlay muted loop playsInline onError={() => setSourceError(true)}><source src={source} type="video/mp4" /></video> : <div className="camera-recording-fallback"><Video size={28}/><strong>Camera recording unavailable</strong><span>Check the recording in public/recordings.</span></div>}
-    <canvas ref={canvasRef} className="ai-detection-canvas" />
-    {aiEnabled && <div className={cn('absolute left-4 top-4 z-10 border px-2 py-1 font-mono text-[9px]', aiState==='active'?'border-[#c2d39a] bg-[#304b32]/80 text-[#deebc1]':'border-[#b27a3d] bg-[#3b3022]/90 text-[#ead8b6]')}>LOCAL AI · {aiState==='active'?'ACTIVE':aiState==='connecting'?'CONNECTING':aiState==='error'?'UNAVAILABLE':'OFF'}</div>}
-    {aiEnabled && aiState==='error' && <div className="absolute left-4 bottom-4 z-10 max-w-[80%] border border-[#a34e42]/60 bg-[#241d19]/90 px-2 py-1 font-mono text-[9px] text-[#e8c2b9]">{aiMessage}</div>}
-    {aiEnabled && aiState==='active' && <div className="absolute right-4 top-4 z-10 border border-[#c2d39a]/70 bg-[#18271e]/80 px-2 py-1 font-mono text-[9px] text-[#deebc1]">{detections.length} OBJECT{detections.length===1?'':'S'}</div>}
-    {thermal && <div className="absolute bottom-4 right-4 z-10 border border-[#c2d39a]/70 bg-[#18271e]/80 px-2 py-1 font-mono text-[9px] text-[#deebc1]">THERMAL CHANNEL</div>}
+  return <div className={cn('camera-feed-shell relative overflow-hidden', className)}>
+    {!sourceError ? (
+      <div className="relative h-full w-full">
+        <video
+          ref={videoRef}
+          className={cn('camera-recording', thermal && 'camera-recording-thermal')}
+          controls
+          autoPlay
+          muted
+          loop
+          playsInline
+          onError={() => setSourceError(true)}
+        >
+          <source src={source} type="video/mp4" />
+        </video>
+        <canvas ref={canvasRef} className="ai-detection-canvas pointer-events-none absolute inset-0 z-[5] h-full w-full" />
+      </div>
+    ) : (
+      <div className="camera-recording-fallback">
+        <Video size={28}/>
+        <strong>Camera recording unavailable</strong>
+        <span>Check the recording in public/recordings.</span>
+      </div>
+    )}
+    {aiEnabled && <div className={cn('pointer-events-none absolute left-4 top-4 z-10 border px-2.5 py-1 font-mono text-[10px] font-bold tracking-wider', aiState==='active'?'border-[#22c55e]/70 bg-[#081e10]/90 text-[#4ade80] shadow-[0_0_10px_rgba(34,197,94,0.3)]':aiState==='connecting'?'border-[#f59e0b]/70 bg-[#211708]/90 text-[#fbbf24]':'border-[#ef4444]/70 bg-[#210908]/90 text-[#fca5a5]')}>LOCAL YOLO // {aiState==='active'?'NOMINAL ACTIVE':aiState==='connecting'?'CONNECTING...':aiState==='error'?'OFFLINE':'OFF'}</div>}
+    {aiEnabled && aiState==='error' && <div className="pointer-events-none absolute left-4 bottom-4 z-10 max-w-[80%] border border-[#ef4444]/60 bg-[#1f0a09]/95 px-3 py-1.5 font-mono text-[10px] font-semibold text-[#fca5a5] shadow-[0_0_12px_rgba(239,68,68,0.35)]">{aiMessage}</div>}
+    {aiEnabled && aiState==='active' && <div className="pointer-events-none absolute right-4 top-4 z-10 border border-[#22c55e]/70 bg-[#081e10]/90 px-2.5 py-1 font-mono text-[10px] font-bold text-[#86efac] shadow-[0_0_10px_rgba(34,197,94,0.3)]">{detections.length} TARGET{detections.length===1?'':'S'} ACQUIRED</div>}
+    {thermal && <div className="pointer-events-none absolute bottom-4 right-4 z-10 border border-[#06b6d4]/70 bg-[#081b21]/90 px-2.5 py-1 font-mono text-[10px] font-bold text-[#38bdf8] shadow-[0_0_10px_rgba(6,182,212,0.3)]">IR THERMAL SENSOR</div>}
   </div>;
 }
 
 function IndiaMap({ compact = false, sector = 'All sectors', onCamera }: { compact?: boolean; sector?: string; onCamera?: (id: string) => void }) {
   const activeCameras = sector === 'All sectors' ? cameras : cameras.filter((camera) => camera.sector === sector);
   const activeSectors = new Set(activeCameras.map((camera) => camera.sector));
-  return <div className={cn('map-frame relative overflow-hidden', compact ? 'min-h-[330px]' : 'min-h-[580px]')}>
+  return <div className={cn('map-frame relative overflow-hidden', compact ? 'min-h-[340px]' : 'min-h-[580px]')}>
     <div className="absolute inset-0 map-grid opacity-70" />
-    <div className="absolute left-4 top-4 z-20 flex flex-wrap items-center gap-3"><span className="eyebrow">LIVE OPERATIONS MAP</span><span className="font-mono text-[10px] text-[#b8bea4]">INDIA · STATE / UT BOUNDARIES</span></div>
-    <div className="absolute right-4 top-4 z-20 flex gap-2"><span className="map-control"><Layers3 size={14} /> 28 STATES · 8 UTs</span></div>
+    <div className="absolute left-4 top-4 z-20 flex flex-wrap items-center gap-3">
+      <span className="eyebrow flex items-center gap-1.5"><Crosshair size={12} /> RADAR C4ISR MESH</span>
+      <span className="font-mono text-[10px] font-bold text-[#86efac]">28 STATES · 8 UTs // ORBAT BOUNDARIES</span>
+    </div>
+    <div className="absolute right-4 top-4 z-20 flex gap-2">
+      <span className="map-control"><Layers3 size={14} className="text-[#4ade80]" /> SENSOR OVERLAY ACTIVE</span>
+    </div>
     <div className="absolute inset-x-[8%] bottom-[9%] top-[12%] z-10">
       <svg viewBox={indiaMap.viewBox} className="h-full w-full" role="img" aria-label="India map with state and union territory boundaries">
         <rect x="0" y="0" width="100%" height="100%" fill="transparent" />
-        {indiaMap.locations.map((location) => <path key={location.id} d={location.path} className="india-state-path" aria-label={location.name}>
+        {indiaMap.locations.map((location: { id: string; name: string; path: string }) => <path key={location.id} d={location.path} className="india-state-path" aria-label={location.name}>
           <title>{location.name}</title>
         </path>)}
       </svg>
       <div className="pointer-events-none absolute inset-0">
         {activeCameras.map((camera) => <button key={camera.id} type="button" aria-label={`${camera.id} · ${camera.site}`} className="pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2" style={{ left: `${camera.coord[0]}%`, top: `${camera.coord[1]}%` }} onClick={() => onCamera?.(camera.id)}>
           <span className={cn('node-halo block h-5 w-5 rounded-full', camera.status === 'Offline' ? 'offline' : camera.status === 'Degraded' ? 'degraded' : '')}><span className="node-core absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full" /></span>
-          <span className="mt-1 block whitespace-nowrap border border-[#8f9b72] bg-[#18271e]/90 px-1.5 py-0.5 font-mono text-[8px] text-[#e0e6cd]">{camera.id}</span>
+          <span className="mt-1 block whitespace-nowrap border border-[#22c55e]/60 bg-[#06120a]/95 px-1.5 py-0.5 font-mono text-[9px] font-bold text-[#86efac] shadow-[0_0_8px_rgba(0,0,0,0.8)]">{camera.id}</span>
         </button>)}
-        {borderPoints.filter((point) => activeSectors.has(point.label)).map((point) => <span key={point.id} className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full border border-dashed border-[#b7c889]/70 px-1.5 py-0.5 font-mono text-[8px] text-[#d7dfc2]" style={{ left: `${point.x}%`, top: `${point.y}%` }}>{point.label}</span>)}
+        {borderPoints.filter((point) => activeSectors.has(point.label)).map((point) => <span key={point.id} className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full border border-dashed border-[#22c55e]/50 bg-[#07130b]/90 px-2 py-0.5 font-mono text-[9px] font-bold text-[#4ade80]" style={{ left: `${point.x}%`, top: `${point.y}%` }}>{point.label}</span>)}
       </div>
     </div>
-    <div className="absolute bottom-4 left-4 z-20 flex flex-wrap gap-4 bg-[#1b2b21]/90 px-3 py-2 text-[10px] text-[#d9ddc6]"><span className="flex items-center gap-2"><StatusDot /> Online {cameras.filter((c) => c.status === 'Online').length}</span><span className="flex items-center gap-2"><StatusDot status="Degraded" /> Degraded {cameras.filter((c) => c.status === 'Degraded').length}</span><span className="flex items-center gap-2"><StatusDot status="Offline" /> Offline {cameras.filter((c) => c.status === 'Offline').length}</span></div>
-    {!compact && <div className="absolute bottom-4 right-4 z-20 border border-[#667452] bg-[#263526]/90 px-3 py-2 font-mono text-[10px] text-[#d9ddc6]">12 NODES · 08 BORDER SECTORS · LOCAL</div>}
+    <div className="absolute bottom-4 left-4 z-20 flex flex-wrap gap-4 border border-[#1b2f21] bg-[#07110c]/95 px-3.5 py-2 font-mono text-[11px] text-[#cbd5e1]"><span className="flex items-center gap-2"><StatusDot /> Online {cameras.filter((c) => c.status === 'Online').length}</span><span className="flex items-center gap-2"><StatusDot status="Degraded" /> Degraded {cameras.filter((c) => c.status === 'Degraded').length}</span><span className="flex items-center gap-2"><StatusDot status="Offline" /> Offline {cameras.filter((c) => c.status === 'Offline').length}</span></div>
+    {!compact && <div className="absolute bottom-4 right-4 z-20 border border-[#1b2f21] bg-[#07110c]/95 px-3 py-2 font-mono text-[10px] font-bold text-[#86efac]">12 NODES · 08 BORDER SECTORS · AIR-GAPPED</div>}
   </div>;
 }
 function Button({ children, kind = 'secondary', onClick, testId, disabled = false, type = 'button' }: { children: ReactNode; kind?: 'primary' | 'secondary' | 'danger' | 'quiet'; onClick?: () => void; testId: string; disabled?: boolean; type?: 'button' | 'submit' | 'reset' }) {
-  return <button type={type} data-testid={testId} onClick={onClick ?? (() => window.alert('Local local action completed in this browser.'))} disabled={disabled} className={cn('action-button', `action-${kind}`, disabled && 'cursor-not-allowed opacity-50')}>{children}</button>;
+  return <button type={type} data-testid={testId} onClick={onClick ?? (() => window.alert('Tactical action registered in local log.'))} disabled={disabled} className={cn('action-button', `action-${kind}`, disabled && 'cursor-not-allowed opacity-50')}>{children}</button>;
 }
 
 function PageHeader({ eyebrow, title, detail, action }: { eyebrow: string; title: string; detail?: string; action?: React.ReactNode }) {
-  return <div className="mb-7 flex flex-wrap items-end justify-between gap-4"><div><div className="eyebrow mb-2">{eyebrow}</div><h1 className="page-title">{title}</h1>{detail && <p className="mt-2 max-w-2xl text-sm text-muted-foreground">{detail}</p>}</div>{action}</div>;
+  return <div className="mb-7 flex flex-wrap items-end justify-between gap-4 border-b border-[#1a2d1f] pb-5">
+    <div>
+      <div className="eyebrow mb-2 flex items-center gap-2">
+        <span className="inline-block h-1.5 w-1.5 bg-[#22c55e] shadow-[0_0_6px_#22c55e]" />
+        {eyebrow}
+      </div>
+      <h1 className="page-title">{title}</h1>
+      {detail && <p className="mt-1.5 max-w-3xl font-mono text-xs text-[#94a3b8] leading-relaxed">{detail}</p>}
+    </div>
+    {action}
+  </div>;
 }
 
 function Metric({ label, value, detail, tone = 'default', icon: Icon }: { label: string; value: string; detail: string; tone?: 'default' | 'alert' | 'good'; icon: typeof Activity }) {
-  return <div className="metric-panel"><div className="flex items-start justify-between"><span className="eyebrow">{label}</span><Icon size={16} className={tone === 'alert' ? 'text-[#a34e42]' : tone === 'good' ? 'text-[#71885b]' : 'text-[#a47840]'} /></div><div className="mt-3 text-3xl font-semibold tracking-tight">{value}</div><div className="mt-1 text-xs text-muted-foreground">{detail}</div></div>;
+  const toneClass = tone === 'alert' ? 'tactical-corner-red border-[#3f1917]' : tone === 'good' ? 'tactical-corner border-[#1c3323]' : 'tactical-corner border-[#1e3324]';
+  const iconColor = tone === 'alert' ? 'text-[#ef4444] bg-[#2a1110] border-[#ef4444]/40 shadow-[0_0_8px_rgba(239,68,68,0.35)]' : tone === 'good' ? 'text-[#4ade80] bg-[#0c2415] border-[#22c55e]/40 shadow-[0_0_8px_rgba(34,197,94,0.35)]' : 'text-[#f59e0b] bg-[#22180c] border-[#f59e0b]/40 shadow-[0_0_8px_rgba(245,158,11,0.35)]';
+  return <div className={cn('metric-panel tactical-corner', toneClass)}>
+    <div className="flex items-start justify-between">
+      <span className="font-mono text-[10px] font-bold tracking-[.16em] uppercase text-[#86efac]">{label}</span>
+      <span className={cn('grid h-7 w-7 place-items-center border', iconColor)}>
+        <Icon size={14} />
+      </span>
+    </div>
+    <div className="mt-3 font-mono text-3xl font-extrabold tracking-tight text-[#f8fafc]">{value}</div>
+    <div className="mt-2 flex items-center gap-1.5 font-mono text-[11px] text-[#94a3b8]">
+      <span className={cn('inline-block h-1.5 w-1.5 rounded-full', tone === 'alert' ? 'bg-[#ef4444]' : tone === 'good' ? 'bg-[#22c55e]' : 'bg-[#f59e0b]')} />
+      {detail}
+    </div>
+  </div>;
 }
 
 function AppShell({ mode, children }: { mode: Mode; children: ReactNode }) {
@@ -232,20 +326,66 @@ function AppShell({ mode, children }: { mode: Mode; children: ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const isAdmin = mode === 'admin';
   const nav: Array<{ href: string; label: string; Icon: typeof Activity; group: string }> = isAdmin ? navGroups.flatMap((group) => group.items.map(([href, label, Icon]) => ({ href, label, Icon, group: group.label }))) : officerNav.map(([href, label, Icon]) => ({ href, label, Icon, group: 'Field operations' }));
-  return <div className={cn('min-h-[100dvh] bg-background', isAdmin ? 'shell-admin' : 'shell-officer')}>
-    <aside className={cn('fixed inset-y-0 left-0 z-40 w-[248px] border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-transform duration-300 md:translate-x-0', mobileOpen ? 'translate-x-0' : '-translate-x-full')}>
+  return <div className={cn('min-h-[100dvh] bg-background text-foreground', isAdmin ? 'shell-admin' : 'shell-officer')}>
+    <aside className={cn('fixed inset-y-0 left-0 z-40 w-[252px] border-r border-[#142418] bg-[#050a06] text-sidebar-foreground transition-transform duration-300 md:translate-x-0', mobileOpen ? 'translate-x-0' : '-translate-x-full')}>
       <div className="flex h-full flex-col">
-        <div className="border-b border-sidebar-border px-5 py-5"><Wordmark light /></div>
-        <div className="mx-4 mt-5 border border-[#65724f] bg-[#2a3929] px-3 py-3"><div className="flex items-center gap-2 text-[10px] font-bold tracking-[.12em] text-[#d0d4b8]"><StatusDot /> {isAdmin ? 'ADMIN COMMAND' : 'GROUND OFFICER'}</div><div className="mt-2 font-mono text-[10px] text-[#aeb79a]">{isAdmin ? 'NATIONAL OPERATIONS DESK' : 'ASSIGNED · LADAKH / NORTH'}</div></div>
-        <nav className="flex-1 overflow-y-auto px-3 py-5">
-          <div className="mb-3 px-3 font-mono text-[9px] tracking-[.18em] text-[#9ba58a]">{isAdmin ? 'COMMAND CONSOLE' : 'FIELD CONSOLE'}</div>
-          {nav.map(({ href, label, Icon, group }) => <div key={href}>{isAdmin && nav.findIndex((n) => n.group === group && n.href === href) === nav.findIndex((n) => n.group === group) && <div className="mb-1 mt-4 px-3 font-mono text-[9px] tracking-[.18em] text-[#738063]">{group}</div>}<Link href={href} onClick={() => setMobileOpen(false)} data-testid={`link-nav-${label.toLowerCase().replace(/\s+/g, '-')}`} className={cn('nav-link', location === href && 'nav-link-active')}><Icon size={16} strokeWidth={1.7} /><span>{label}</span>{label === 'Alert queue' && <span className="ml-auto rounded-sm bg-[#a34e42] px-1.5 py-0.5 font-mono text-[9px] text-[#f3ead7]">03</span>}</Link></div>)}
+        <div className="border-b border-[#142418] px-5 py-5"><Wordmark light /></div>
+        <div className="mx-3 mt-4 border border-[#22442d] bg-[#0c1811] px-3.5 py-3 tactical-corner">
+          <div className="flex items-center justify-between">
+            <span className="flex items-center gap-2 font-mono text-[10px] font-bold tracking-[.14em] text-[#86efac]">
+              <StatusDot /> {isAdmin ? 'DEFCON 2 // ADMIN' : 'DEFCON 3 // OFFICER'}
+            </span>
+            <span className="border border-[#22c55e]/40 bg-[#14331e] px-1.5 py-0.5 font-mono text-[8px] font-extrabold text-[#4ade80]">COP-ACTIVE</span>
+          </div>
+          <div className="mt-2 font-mono text-[10px] text-[#94a3b8]">{isAdmin ? 'NATIONAL C4ISR OPERATIONS DESK' : 'ASSIGNED · LADAKH / NORTH'}</div>
+        </div>
+        <nav className="flex-1 overflow-y-auto px-3 py-4">
+          <div className="mb-2 px-3 font-mono text-[9px] font-bold tracking-[.22em] text-[#52795d] uppercase">{isAdmin ? 'COMMAND CHANNELS' : 'FIELD CHANNELS'}</div>
+          {nav.map(({ href, label, Icon, group }) => <div key={href}>
+            {isAdmin && nav.findIndex((n) => n.group === group && n.href === href) === nav.findIndex((n) => n.group === group) && (
+              <div className="mb-1 mt-4 px-3 font-mono text-[9px] font-bold tracking-[.22em] text-[#3e5f48] uppercase">{group}</div>
+            )}
+            <Link href={href} onClick={() => setMobileOpen(false)} data-testid={`link-nav-${label.toLowerCase().replace(/\s+/g, '-')}`} className={cn('nav-link', location === href && 'nav-link-active')}>
+              <Icon size={16} strokeWidth={1.8} className={location === href ? 'text-[#4ade80]' : 'text-[#64748b]'} />
+              <span>{label}</span>
+              {label === 'Alert queue' && <span className="ml-auto border border-[#ef4444] bg-[#2a100f] px-1.5 py-0.5 font-mono text-[9px] font-bold text-[#fca5a5] shadow-[0_0_8px_rgba(239,68,68,0.4)]">03</span>}
+            </Link>
+          </div>)}
         </nav>
-        <div className="border-t border-sidebar-border p-4"><div className="mb-4 flex items-center gap-3"><span className="avatar">AS</span><div className="min-w-0"><div className="truncate text-xs font-semibold">{isAdmin ? 'A. Srinivasan' : 'R. Dorje'}</div><div className="font-mono text-[9px] text-[#9ba58a]">{isAdmin ? 'COMMAND ADMIN' : 'FIELD OFFICER · G2'}</div></div></div><Link href="/role-select" data-testid="link-switch-role" className="flex items-center gap-2 text-[11px] text-[#b9c39f] hover:text-[#e4e4c9]"><LogOut size={14} /> Switch workspace</Link></div>
+        <div className="border-t border-[#142418] bg-[#070e08] p-4">
+          <div className="mb-3 flex items-center gap-3">
+            <span className="avatar">AS</span>
+            <div className="min-w-0">
+              <div className="truncate font-mono text-xs font-bold text-[#f1f5f9]">{isAdmin ? 'A. SRINIVASAN' : 'R. DORJE'}</div>
+              <div className="font-mono text-[9px] text-[#86efac]">{isAdmin ? 'CLEARANCE: LEVEL-5 (TOP SECRET)' : 'FIELD OPERATOR · G2'}</div>
+            </div>
+          </div>
+          <Link href="/role-select" data-testid="link-switch-role" className="flex items-center gap-2 font-mono text-[11px] font-semibold text-[#8b9d90] hover:text-[#4ade80]">
+            <LogOut size={13} /> Switch operational role
+          </Link>
+        </div>
       </div>
     </aside>
-    {mobileOpen && <button aria-label="Close navigation" data-testid="button-close-navigation" className="fixed inset-0 z-30 bg-[#172118]/45 md:hidden" onClick={() => setMobileOpen(false)} />}
-    <main className="md:pl-[248px]"><header className="sticky top-0 z-20 flex min-h-[68px] items-center justify-between border-b border-border bg-background/95 px-4 backdrop-blur md:px-8"><button className="mr-3 md:hidden" data-testid="button-open-navigation" onClick={() => setMobileOpen(true)}><Menu size={20} /></button><div className="flex items-center gap-3"><span className="hidden font-mono text-[10px] text-muted-foreground sm:block">SECURE LOCAL INSTANCE</span><LocalStatus /></div><div className="flex items-center gap-3"><span className="hidden text-right sm:block"><span className="block text-xs font-semibold">{isAdmin ? 'National Command' : 'Ladakh · North sector'}</span><span className="font-mono text-[9px] text-muted-foreground">SESSION PN-LOCAL-7F2A</span></span><span className="avatar avatar-light">{isAdmin ? 'AS' : 'RD'}</span></div></header><div className="mx-auto max-w-[1500px] px-4 py-7 md:px-8 lg:px-10">{children}</div></main>
+    {mobileOpen && <button aria-label="Close navigation" data-testid="button-close-navigation" className="fixed inset-0 z-30 bg-black/70 backdrop-blur-xs md:hidden" onClick={() => setMobileOpen(false)} />}
+    <main className="md:pl-[252px]">
+      <header className="sticky top-0 z-20 flex min-h-[64px] items-center justify-between border-b border-[#1a2d1f] bg-[#080f0a]/95 px-4 backdrop-blur-md md:px-8">
+        <button className="mr-3 md:hidden text-[#4ade80]" data-testid="button-open-navigation" onClick={() => setMobileOpen(true)}><Menu size={20} /></button>
+        <div className="flex items-center gap-3">
+          <span className="hidden border border-[#ef4444]/40 bg-[#2b0f0e] px-2 py-0.5 font-mono text-[9px] font-extrabold tracking-widest text-[#fca5a5] lg:inline-block">
+            // TOP SECRET / RESTRICTED //
+          </span>
+          <LocalStatus />
+        </div>
+        <div className="flex items-center gap-4">
+          <div className="hidden text-right sm:block font-mono">
+            <div className="text-xs font-bold text-[#f8fafc]">{isAdmin ? 'NATIONAL COMMAND CENTER // ORBAT' : 'LADAKH SECTOR // NORTH WATCH'}</div>
+            <div className="text-[10px] text-[#86efac]">STATION: PRAHARI-HQ · AIR-GAPPED</div>
+          </div>
+          <span className="avatar avatar-light">{isAdmin ? 'AS' : 'RD'}</span>
+        </div>
+      </header>
+      <div className="mx-auto max-w-[1540px] px-4 py-7 md:px-8 lg:px-10">{children}</div>
+    </main>
   </div>;
 }
 
@@ -263,25 +403,291 @@ function Login() {
 function RoleSelect() {
   const [, setLocation] = useLocation();
   const [selected, setSelected] = useState<Mode>('admin');
-  return <div className="min-h-[100dvh] bg-[#e7e3cf] px-5 py-7 text-[#344128] md:px-12"><div className="mx-auto flex max-w-6xl items-center justify-between"><Wordmark /><Link href="/" data-testid="link-role-exit" className="text-xs text-[#66734e]">Exit system</Link></div><div className="mx-auto max-w-5xl py-20"><div className="eyebrow">SESSION HANDOFF · 02 / ROLE</div><h1 className="mt-4 max-w-2xl text-4xl font-semibold tracking-tight md:text-6xl">Choose your operational view.</h1><p className="mt-5 max-w-xl text-sm leading-6 text-[#687250]">Roles are intentionally separated. The command view sees the network. The ground view sees the assignment.</p><div className="mt-12 grid gap-4 md:grid-cols-2"><RoleCard mode="admin" selected={selected === 'admin'} onClick={() => setSelected('admin')} onEnter={() => setLocation('/admin')} /><RoleCard mode="officer" selected={selected === 'officer'} onClick={() => setSelected('officer')} onEnter={() => setLocation('/officer')} /></div><div className="mt-8 flex items-center justify-between border-t border-[#c9c4a9] pt-5 text-[10px] text-[#78805f]"><span>ROLE CHANGES ARE RECORDED IN THE LOCAL AUDIT LOG</span><span className="font-mono">LOCAL SESSION PN-LOCAL-7F2A</span></div></div></div>;
+  return <div className="min-h-[100dvh] bg-[#070e0a] px-5 py-7 text-[#eff7f1] md:px-12">
+    <div className="mx-auto flex max-w-6xl items-center justify-between">
+      <Wordmark light />
+      <Link href="/" data-testid="link-role-exit" className="font-mono text-xs text-[#86efac] hover:text-[#4ade80]">
+        Exit system
+      </Link>
+    </div>
+    <div className="mx-auto max-w-5xl py-20">
+      <div className="eyebrow">SESSION HANDOFF · 02 / OPERATIONAL ROLE</div>
+      <h1 className="mt-4 max-w-2xl text-4xl font-bold uppercase tracking-tight md:text-6xl text-[#f8fafc]">
+        Select Command Station
+      </h1>
+      <p className="mt-5 max-w-xl font-mono text-xs leading-relaxed text-[#94a3b8]">
+        Roles are strictly compartmented under national defense protocol. Command console monitors the aggregate border ORBAT; Ground console manages assigned post watch.
+      </p>
+      <div className="mt-12 grid gap-5 md:grid-cols-2">
+        <RoleCard mode="admin" selected={selected === 'admin'} onClick={() => setSelected('admin')} onEnter={() => setLocation('/admin')} />
+        <RoleCard mode="officer" selected={selected === 'officer'} onClick={() => setSelected('officer')} onEnter={() => setLocation('/officer')} />
+      </div>
+      <div className="mt-8 flex items-center justify-between border-t border-[#1b2d20] pt-5 text-[10px] text-[#86efac] font-mono">
+        <span>SECURITY PROTOCOL: ROLE ELEVATION LOGGED IN SHA-256 AUDIT LEDGER</span>
+        <span>SESSION // PN-SEC-7F2A</span>
+      </div>
+    </div>
+  </div>;
 }
 
 function RoleCard({ mode, selected, onClick, onEnter }: { mode: Mode; selected: boolean; onClick: () => void; onEnter: () => void }) {
   const admin = mode === 'admin';
-  return <div className={cn('role-card', selected && 'role-card-selected')} onClick={onClick} data-testid={`card-role-${mode}`}><div className="flex items-start justify-between"><span className={cn('role-icon', admin ? 'role-icon-admin' : 'role-icon-officer')}>{admin ? <MonitorCog size={25} /> : <Crosshair size={25} />}</span><span className={cn('h-4 w-4 rounded-full border-2', selected ? 'border-[#71885b] bg-[#71885b]' : 'border-[#a5a88d]')} /></div><div className="mt-8"><div className="eyebrow">{admin ? 'NATIONAL OPERATIONS' : 'ASSIGNED SECTOR'}</div><h2 className="mt-2 text-2xl font-semibold">{admin ? 'Admin Command' : 'Ground Officer'}</h2><p className="mt-3 min-h-[48px] text-sm leading-6 text-[#687250]">{admin ? 'Observe all sectors, review incidents, inspect system health, and validate the chain of evidence.' : 'Respond to assigned alerts, watch sector cameras, capture field evidence, and escalate with context.'}</p></div><button className="mt-7 flex items-center gap-2 text-xs font-semibold text-[#4f653c] hover:text-[#a47840]" data-testid={`button-enter-role-${mode}`} onClick={(event) => { event.stopPropagation(); onEnter(); }}>Enter workspace <ArrowRight size={14} /></button></div>;
+  return <div className={cn('role-card tactical-corner', selected && 'role-card-selected')} onClick={onClick} data-testid={`card-role-${mode}`}>
+    <div className="flex items-start justify-between">
+      <span className={cn('role-icon', admin ? 'role-icon-admin' : 'role-icon-officer')}>
+        {admin ? <MonitorCog size={25} /> : <Crosshair size={25} />}
+      </span>
+      <span className={cn('h-4 w-4 rounded-full border-2', selected ? 'border-[#22c55e] bg-[#22c55e] shadow-[0_0_8px_#22c55e]' : 'border-[#2d4734]')} />
+    </div>
+    <div className="mt-8">
+      <div className="eyebrow">{admin ? 'DEFENSE C4ISR COMMAND' : 'BORDER SECTOR POST'}</div>
+      <h2 className="mt-2 text-2xl font-extrabold uppercase text-[#f8fafc]">{admin ? 'Admin Command' : 'Ground Officer'}</h2>
+      <p className="mt-3 min-h-[48px] font-mono text-xs leading-relaxed text-[#94a3b8]">
+        {admin ? 'Full multi-sector surveillance, incident review, health diagnostics, and evidentiary proof verification.' : 'Sector camera telemetry, alert acknowledgment, field evidence recording, and incident escalation.'}
+      </p>
+    </div>
+    <button className="mt-7 flex items-center gap-2 font-mono text-xs font-bold text-[#4ade80] hover:text-[#86efac]" data-testid={`button-enter-role-${mode}`} onClick={(event) => { event.stopPropagation(); onEnter(); }}>
+      Enter Station <ArrowRight size={14} />
+    </button>
+  </div>;
 }
 
 function AdminOverview() {
   const [, setLocation] = useLocation();
-  return <><PageHeader eyebrow="NATIONAL OPERATIONS · 18 JUN 2025 / 14:36 IST" title="Command overview" detail="A single operational picture across the border network." action={<Button kind="primary" testId="button-open-command-map" onClick={() => setLocation('/admin/map')}><MapIcon size={15} /> Open operations map</Button>} /><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Metric label="Active incidents" value="04" detail="02 requiring command review" tone="alert" icon={AlertTriangle} /><Metric label="Network cameras" value="11 / 12" detail="91.7% currently reporting" tone="good" icon={Camera} /><Metric label="AI detections · 24h" value="126" detail="+18 from prior period" icon={Sparkles} /><Metric label="Evidence integrity" value="99.2%" detail="124 of 125 verified" tone="good" icon={ShieldCheck} /></div><div className="mt-6 grid gap-6 xl:grid-cols-[1.5fr_.85fr]"><section className="panel overflow-hidden"><div className="flex items-center justify-between border-b border-border px-5 py-4"><div><div className="eyebrow">OPERATIONS PICTURE</div><h2 className="mt-1 text-base font-semibold">Border network status</h2></div><Link href="/admin/map" data-testid="link-view-full-map" className="text-xs font-semibold text-[#71885b]">View full map <ArrowRight size={13} className="ml-1 inline" /></Link></div><IndiaMap compact onCamera={(id) => setLocation(`/admin/cameras/${id}`)} /></section><section className="panel"><div className="border-b border-border px-5 py-4"><div className="eyebrow">COMMAND ATTENTION</div><h2 className="mt-1 text-base font-semibold">Priority queue</h2></div><div className="divide-y divide-border">{incidents.slice(0, 4).map((incident) => <Link href={`/admin/incidents?focus=${incident.id}`} key={incident.id} data-testid={`row-priority-${incident.id}`} className="block px-5 py-4 hover:bg-[#e8e5d3]"><div className="flex items-start justify-between gap-3"><span className={cn('severity', `severity-${incident.severity.toLowerCase()}`)}>{incident.severity}</span><span className="font-mono text-[10px] text-muted-foreground">{incident.time.split(' · ')[1]}</span></div><div className="mt-2 text-sm font-semibold">{incident.title}</div><div className="mt-2 flex items-center justify-between text-[10px] text-muted-foreground"><span>{incident.sector} · {incident.camera}</span><span>{incident.state}</span></div></Link>)}</div></section></div><div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1fr]"><RecentDetections /><SystemReadiness /></div></>;
+  return <>
+    {/* Military Status Ribbon */}
+    <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border border-[#22442d] bg-[#0b1610] px-4 py-2.5 font-mono text-[11px] tactical-corner">
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="flex items-center gap-2 font-bold text-[#4ade80]">
+          <span className="signal-pulse" /> GRID COP: SECTOR 43R-VQ
+        </span>
+        <span className="text-[#36533d]">|</span>
+        <span className="text-[#cbd5e1]">ACTIVE SENSORS: <strong className="text-[#86efac]">12 NODES</strong></span>
+        <span className="text-[#36533d]">|</span>
+        <span className="text-[#cbd5e1]">EDGE AI: <strong className="text-[#86efac]">YOLO-v11 ACTIVE</strong></span>
+      </div>
+      <div className="flex items-center gap-2.5 text-[10px]">
+        <span className="border border-[#22c55e]/40 bg-[#122e1b] px-2 py-0.5 font-bold text-[#4ade80]">DEFCON 2 // GUARDED</span>
+        <span className="font-semibold text-[#94a3b8]">14:36:18 IST (UTC+05:30)</span>
+      </div>
+    </div>
+
+    <PageHeader
+      eyebrow="C4ISR BORDER INTELLIGENCE · ORBAT COP"
+      title="Tactical Command Overview"
+      detail="Unified multi-sensor common operational picture. Real-time electro-optical, thermal radar telemetry and automated YOLO edge inferences across all border sectors."
+      action={
+        <div className="flex flex-wrap gap-2.5">
+          <Button kind="secondary" testId="button-system-telemetry" onClick={() => window.alert('Raw tactical telemetry stream downloaded.')}>
+            <SlidersHorizontal size={14} /> Telemetry log
+          </Button>
+          <Button kind="primary" testId="button-open-command-map" onClick={() => setLocation('/admin/map')}>
+            <MapIcon size={14} /> Deploy radar map
+          </Button>
+        </div>
+      }
+    />
+
+    {/* Metric Telemetry Row */}
+    <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
+      <Metric label="Active Threat Incidents" value="04" detail="02 critical · immediate command action" tone="alert" icon={AlertTriangle} />
+      <Metric label="Active Sensor Mesh" value="11 / 12" detail="91.7% optical/thermal mesh reporting" tone="good" icon={Camera} />
+      <Metric label="Target Inferences · 24h" value="126" detail="+18 confirmed targets vs prior cycle" icon={Sparkles} />
+      <Metric label="Evidence Cryptographic Integrity" value="99.2%" detail="124 of 125 SHA-256 blocks verified" tone="good" icon={ShieldCheck} />
+    </div>
+
+    {/* Main Radar Map & Threat Queue */}
+    <div className="mt-6 grid gap-6 xl:grid-cols-[1.55fr_.85fr]">
+      <section className="panel tactical-corner overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#1c2e22] bg-[#09120d] px-5 py-3.5">
+          <div>
+            <div className="eyebrow flex items-center gap-1.5">
+              <Crosshair size={13} /> GEOSPATIAL INTELLIGENCE // COP
+            </div>
+            <h2 className="mt-0.5 font-mono text-sm font-bold tracking-wide text-[#f8fafc]">Border Sensor Network Radar Frame</h2>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="hidden sm:inline-flex items-center gap-1.5 font-mono text-[10px] text-[#86efac]">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#22c55e] shadow-[0_0_4px_#22c55e]" /> 8 BORDER SECTORS
+            </span>
+            <Link href="/admin/map" data-testid="link-view-full-map" className="font-mono text-xs font-bold text-[#4ade80] hover:text-[#86efac]">
+              Expand Radar HUD <ArrowRight size={13} className="ml-1 inline" />
+            </Link>
+          </div>
+        </div>
+        <IndiaMap compact onCamera={(id) => setLocation(`/admin/cameras/${id}`)} />
+      </section>
+
+      <section className="panel tactical-corner flex flex-col">
+        <div className="flex items-center justify-between border-b border-[#1c2e22] bg-[#09120d] px-5 py-3.5">
+          <div>
+            <div className="eyebrow flex items-center gap-1.5">
+              <Flag size={13} /> COMMAND ATTENTION
+            </div>
+            <h2 className="mt-0.5 font-mono text-sm font-bold tracking-wide text-[#f8fafc]">Priority Threat Queue</h2>
+          </div>
+          <span className="border border-[#ef4444]/40 bg-[#2b100f] px-2 py-0.5 font-mono text-[10px] font-bold text-[#fca5a5]">
+            4 ELEVATED
+          </span>
+        </div>
+        <div className="divide-y divide-[#17261c] flex-1">
+          {incidents.slice(0, 4).map((incident) => (
+            <Link
+              href={`/admin/incidents?focus=${incident.id}`}
+              key={incident.id}
+              data-testid={`row-priority-${incident.id}`}
+              className="block px-5 py-3.5 transition-colors hover:bg-[#112015] border-l-2 border-transparent hover:border-l-[#22c55e]"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <span className={cn('severity', `severity-${incident.severity.toLowerCase()}`)}>
+                  {incident.severity} // THREAT
+                </span>
+                <span className="font-mono text-[11px] font-semibold text-[#86efac]">{incident.time.split(' · ')[1]} HRS</span>
+              </div>
+              <div className="mt-2 text-sm font-bold text-[#f8fafc]">{incident.title}</div>
+              <div className="mt-2 flex items-center justify-between font-mono text-[11px] text-[#94a3b8]">
+                <span>{incident.sector} SECTOR · {incident.camera}</span>
+                <span className="border border-[#233f2c] bg-[#0e1a12] px-1.5 py-0.5 text-[#86efac]">{incident.state}</span>
+              </div>
+            </Link>
+          ))}
+        </div>
+        <div className="border-t border-[#1c2e22] bg-[#080f0a] p-3 text-center">
+          <Link href="/admin/incidents" className="font-mono text-xs font-bold text-[#4ade80] hover:text-[#86efac]">
+            View All Incident Records (5 Total) <ArrowRight size={13} className="ml-1 inline" />
+          </Link>
+        </div>
+      </section>
+    </div>
+
+    {/* Bottom Grid: Recent Detections & System Readiness */}
+    <div className="mt-6 grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+      <RecentDetections />
+      <SystemReadiness />
+    </div>
+  </>;
 }
 
 function RecentDetections() {
-  return <section className="panel"><div className="flex items-center justify-between border-b border-border px-5 py-4"><div><div className="eyebrow">AI ACTIVITY</div><h2 className="mt-1 text-base font-semibold">Recent detections</h2></div><Link href="/admin/analytics" data-testid="link-detections-analytics" className="text-xs text-[#71885b]">Analytics <ArrowRight size={13} className="ml-1 inline" /></Link></div><div className="overflow-x-auto"><table className="data-table"><thead><tr><th>Time</th><th>Class</th><th>Confidence</th><th>Node</th></tr></thead><tbody>{detections.map(([time, type, confidence, camera]) => <tr key={time}><td className="font-mono text-[10px]">{time}</td><td><span className="class-chip">{type}</span></td><td>{confidence}</td><td className="font-mono text-[10px] text-muted-foreground">{camera}</td></tr>)}</tbody></table></div></section>;
+  return <section className="panel tactical-corner">
+    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#1c2e22] bg-[#09120d] px-5 py-3.5">
+      <div>
+        <div className="eyebrow flex items-center gap-1.5">
+          <Target size={13} /> AI INFERENCE STREAM
+        </div>
+        <h2 className="mt-0.5 font-mono text-sm font-bold tracking-wide text-[#f8fafc]">Target Classification Log</h2>
+      </div>
+      <Link href="/admin/analytics" data-testid="link-detections-analytics" className="font-mono text-xs font-bold text-[#4ade80] hover:text-[#86efac]">
+        Inference Analytics <ArrowRight size={13} className="ml-1 inline" />
+      </Link>
+    </div>
+    <div className="overflow-x-auto">
+      <table className="data-table">
+        <thead>
+          <tr>
+            <th>Time (IST)</th>
+            <th>Target Class</th>
+            <th>Confidence</th>
+            <th>Sensor Node</th>
+            <th>Threat</th>
+          </tr>
+        </thead>
+        <tbody>
+          {detections.map(([time, type, confidence, camera, threat]) => (
+            <tr key={time}>
+              <td className="font-mono text-[11px] font-bold text-[#cbd5e1]">{time}</td>
+              <td>
+                <span className={cn('class-chip', type === 'PERSON' ? 'border-[#22c55e]/50 text-[#4ade80] bg-[#0f2416]' : type === 'VEHICLE' ? 'border-[#f59e0b]/50 text-[#fbbf24] bg-[#241a0d]' : 'border-[#06b6d4]/50 text-[#38bdf8] bg-[#0c1f24]')}>
+                  [{type}]
+                </span>
+              </td>
+              <td className="font-mono text-[11px] font-semibold text-[#f8fafc]">
+                <div className="flex items-center gap-2">
+                  <span>{confidence}</span>
+                  <div className="h-1.5 w-16 bg-[#18291d] rounded-full overflow-hidden">
+                    <div className="h-full bg-[#22c55e]" style={{ width: confidence }} />
+                  </div>
+                </div>
+              </td>
+              <td className="font-mono text-[11px] font-bold text-[#86efac]">{camera}</td>
+              <td>
+                <span className={cn('font-mono text-[10px] font-bold', threat === 'Critical' ? 'text-[#ef4444]' : threat === 'High' ? 'text-[#f59e0b]' : 'text-[#86efac]')}>
+                  {threat}
+                </span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </section>;
 }
 
 function SystemReadiness() {
-  return <section className="panel"><div className="border-b border-border px-5 py-4"><div className="eyebrow">SYSTEM READINESS</div><h2 className="mt-1 text-base font-semibold">Operational health</h2></div><div className="space-y-5 p-5">{[['Camera mesh', '98.4%', 'good'], ['AI inference queue', '184 ms', 'good'], ['Evidence storage', '68.2%', 'good'], ['Gujarat uplink', 'Offline', 'alert']].map(([label, value, tone]) => <div key={label}><div className="mb-2 flex justify-between text-xs"><span>{label}</span><span className={tone === 'alert' ? 'text-[#a34e42]' : 'text-[#71885b]'}>{value}</span></div><div className="h-1.5 bg-[#d7d5c1]"><div className={cn('h-full', tone === 'alert' ? 'w-[22%] bg-[#a34e42]' : 'w-[82%] bg-[#71885b]')} /></div></div>)}<Link href="/admin/health" data-testid="link-open-health" className="mt-1 block border-t border-border pt-4 text-xs font-semibold text-[#71885b]">Open health console <ArrowRight size={13} className="ml-1 inline" /></Link></div></section>;
+  const readinessItems = [
+    { label: 'Tactical Camera Mesh', value: '98.4%', tone: 'good', segments: 10, active: 10, note: '11 of 12 sensor nodes active' },
+    { label: 'Local YOLO AI Latency', value: '184 ms', tone: 'good', segments: 10, active: 9, note: 'Inference queue nominal' },
+    { label: 'Evidence Cryptographic Storage', value: '68.2%', tone: 'good', segments: 10, active: 7, note: 'Tamper-evident SHA-256 stream' },
+    { label: 'Gujarat Sector Uplink', value: 'OFFLINE', tone: 'alert', segments: 10, active: 2, note: 'Heartbeat threshold exceeded' },
+  ];
+
+  return <section className="panel tactical-corner">
+    <div className="flex items-center justify-between border-b border-[#1c2e22] bg-[#09120d] px-5 py-3.5">
+      <div>
+        <div className="eyebrow flex items-center gap-1.5">
+          <Activity size={13} /> SUBSYSTEM READINESS
+        </div>
+        <h2 className="mt-0.5 font-mono text-sm font-bold tracking-wide text-[#f8fafc]">Hardware & Uplink Diagnostics</h2>
+      </div>
+      <span className="border border-[#22c55e]/40 bg-[#122e1b] px-2 py-0.5 font-mono text-[10px] font-bold text-[#4ade80]">
+        MESH: 94.2%
+      </span>
+    </div>
+    <div className="space-y-4 p-5">
+      {readinessItems.map((item) => (
+        <div key={item.label} className="border border-[#17281d] bg-[#08100b] p-3">
+          <div className="mb-2 flex items-center justify-between font-mono text-xs">
+            <span className="font-bold text-[#f1f5f9]">{item.label}</span>
+            <span className={cn('font-bold tracking-wide', item.tone === 'alert' ? 'text-[#ef4444]' : 'text-[#4ade80]')}>
+              {item.value}
+            </span>
+          </div>
+          {/* Segmented Military LED Bar */}
+          <div className="flex gap-1 h-2 my-2">
+            {Array.from({ length: item.segments }).map((_, i) => {
+              const isFilled = i < item.active;
+              const segColor = item.tone === 'alert'
+                ? 'bg-[#ef4444] shadow-[0_0_6px_rgba(239,68,68,0.7)]'
+                : 'bg-[#22c55e] shadow-[0_0_6px_rgba(34,197,94,0.7)]';
+              return (
+                <span
+                  key={i}
+                  className={cn(
+                    'flex-1 rounded-[1px] transition-all',
+                    isFilled ? segColor : 'bg-[#142318]'
+                  )}
+                />
+              );
+            })}
+          </div>
+          <div className="flex justify-between font-mono text-[10px] text-[#8fa087]">
+            <span>{item.note}</span>
+            <span className={cn('uppercase font-bold', item.tone === 'alert' ? 'text-[#ef4444]' : 'text-[#86efac]')}>
+              {item.tone === 'alert' ? 'UPLINK LOST' : 'CHANNEL NOMINAL'}
+            </span>
+          </div>
+        </div>
+      ))}
+      <Link
+        href="/admin/health"
+        data-testid="link-open-health"
+        className="mt-2 flex items-center justify-between border-t border-[#1c2e22] pt-3 font-mono text-xs font-bold text-[#4ade80] hover:text-[#86efac]"
+      >
+        <span>Open Advanced Health Diagnostics</span>
+        <ArrowRight size={13} className="ml-1 inline" />
+      </Link>
+    </div>
+  </section>;
 }
 
 function AdminMap() {
@@ -308,7 +714,7 @@ function CameraDetail() {
   const [thermal, setThermal] = useState(false);
   const [aiEnabled, setAiEnabled] = useState(true);
   const [note, setNote] = useState('');
-  return <><PageHeader eyebrow={`CAMERA NODE · ${camera.id}`} title={camera.site} detail={`${camera.sector} sector · Last heartbeat ${camera.heartbeat}`} action={<div className="flex gap-2"><Button kind="secondary" testId="button-camera-back" onClick={() => setLocation('/admin/cameras')}><ArrowLeft size={14} /> All cameras</Button><Button kind="primary" testId="button-create-incident" onClick={() => setNote('Incident record created from camera context.')}>Create incident <Flag size={14} /></Button></div>} />{note && <div className="mb-5 flex items-center justify-between border border-[#71885b]/30 bg-[#71885b]/10 px-4 py-3 text-xs text-[#526c43]">{note}<button onClick={() => setNote('')}><X size={14}/></button></div>}<div className="grid gap-6 xl:grid-cols-[1.35fr_.65fr]"><div className="space-y-6"><section className="feed-panel"><div className="feed-top"><span className="flex items-center gap-2"><span className="signal-pulse" /> {camera.id} · {thermal ? 'THERMAL' : 'VISIBLE CCTV'}</span><span className="font-mono">LOCAL PLAYBACK</span></div><CameraFeed cameraId={camera.id} thermal={thermal} aiEnabled={aiEnabled} className="min-h-[440px]"/><div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#4c6449] bg-[#18271e] px-4 py-3 text-[#b9c9a1]"><div className="flex gap-2"><button onClick={() => setThermal(false)} className={cn('action-button action-quiet', !thermal && 'bg-[#40543d]')}><Video size={14}/> Visible CCTV</button><button onClick={() => setThermal(true)} className={cn('action-button action-quiet', thermal && 'bg-[#40543d]')}><Crosshair size={14}/> Thermal</button><button onClick={() => setAiEnabled(!aiEnabled)} className={cn('action-button action-quiet', aiEnabled && 'bg-[#40543d]')}>{aiEnabled ? 'AI overlay ON' : 'AI overlay OFF'}</button></div><span className="font-mono text-[10px]">LOCAL RECORDING · AI INFERENCE</span></div></section><section className="panel"><div className="border-b border-border px-5 py-4"><div className="eyebrow">EVENT TIMELINE</div><h2 className="mt-1 text-base font-semibold">Detection and operator activity</h2></div><div className="timeline p-5">{[['14:32:19', 'AI detection', 'Person class above confidence threshold', 'AI ENGINE'], ['14:31:58', 'AI detection', 'Vehicle class entered geofence corridor', 'AI ENGINE'], ['14:30:44', 'Heartbeat', 'Node reported nominal health at 98%', 'SYSTEM'], ['13:48:10', 'Operator note', 'Camera context opened', 'COMMAND']].map(([time, title, text, actor]) => <div className="timeline-item" key={time}><span className="timeline-dot" /><div className="flex flex-wrap justify-between gap-2"><span className="text-xs font-semibold">{title}</span><span className="font-mono text-[10px] text-muted-foreground">{time} · {actor}</span></div><p className="mt-1 text-xs text-muted-foreground">{text}</p></div>)}</div></section></div><aside className="space-y-6"><section className="panel"><div className="border-b border-border px-5 py-4"><div className="eyebrow">NODE METADATA</div><h2 className="mt-1 text-base font-semibold">Trust and connectivity</h2></div><div className="divide-y divide-border">{[['Status', camera.status], ['Visible source', cameraRecordings[camera.id]?.visible ?? 'Unavailable'], ['Thermal source', cameraRecordings[camera.id]?.thermal ?? 'Unavailable'], ['Device certificate', 'Valid · 41 days'], ['mTLS channel', 'Established'], ['Firmware', 'PN-CAM 3.14.2'], ['Last heartbeat', camera.heartbeat]].map(([key, value]) => <div key={key} className="flex justify-between gap-3 px-5 py-3 text-xs"><span className="text-muted-foreground">{key}</span><span className="max-w-[60%] text-right font-medium break-all">{value}</span></div>)}</div></section><section className="panel p-5"><div className="eyebrow">AI ACTIVITY</div><div className="mt-4 flex items-end justify-between"><span className="text-3xl font-semibold">{camera.detections}</span><span className="text-xs text-muted-foreground">events / last 24h</span></div><div className="mini-bars mt-5">{[25,42,31,55,42,68,48,72,63,86,54,78].map((height,index)=><span key={index} style={{height:`${height}%`}} />)}</div><Link href="/admin/evidence" className="mt-5 block text-xs font-semibold text-[#71885b]">Inspect linked evidence <ArrowRight size={13} className="ml-1 inline" /></Link></section></aside></div></>;
+  return <><PageHeader eyebrow={`CAMERA NODE · ${camera.id}`} title={camera.site} detail={`${camera.sector} sector · Last heartbeat ${camera.heartbeat}`} action={<div className="flex gap-2"><Button kind="secondary" testId="button-camera-back" onClick={() => setLocation('/admin/cameras')}><ArrowLeft size={14} /> All cameras</Button><Button kind="primary" testId="button-create-incident" onClick={() => setNote('Incident record created from camera context.')}>Create incident <Flag size={14} /></Button></div>} />{note && <div className="mb-5 flex items-center justify-between border border-[#71885b]/30 bg-[#71885b]/10 px-4 py-3 text-xs text-[#526c43]">{note}<button onClick={() => setNote('')}><X size={14}/></button></div>}<div className="grid gap-6 xl:grid-cols-[1.35fr_.65fr]"><div className="space-y-6"><section className="feed-panel"><div className="feed-top"><span className="flex items-center gap-2"><span className="signal-pulse" /> {camera.id} · {thermal ? 'THERMAL' : 'VISIBLE CCTV'}</span><span className="font-mono">LOCAL PLAYBACK</span></div><CameraFeed cameraId={camera.id} thermal={thermal} aiEnabled={aiEnabled} className="min-h-[440px] h-[480px] xl:h-[520px]"/><div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#4c6449] bg-[#18271e] px-4 py-3 text-[#b9c9a1]"><div className="flex gap-2"><button onClick={() => setThermal(false)} className={cn('action-button action-quiet', !thermal && 'bg-[#40543d]')}><Video size={14}/> Visible CCTV</button><button onClick={() => setThermal(true)} className={cn('action-button action-quiet', thermal && 'bg-[#40543d]')}><Crosshair size={14}/> Thermal</button><button onClick={() => setAiEnabled(!aiEnabled)} className={cn('action-button action-quiet', aiEnabled && 'bg-[#40543d]')}>{aiEnabled ? 'AI overlay ON' : 'AI overlay OFF'}</button></div><span className="font-mono text-[10px]">LOCAL RECORDING · AI INFERENCE</span></div></section><section className="panel"><div className="border-b border-border px-5 py-4"><div className="eyebrow">EVENT TIMELINE</div><h2 className="mt-1 text-base font-semibold">Detection and operator activity</h2></div><div className="timeline p-5">{[['14:32:19', 'AI detection', 'Person class above confidence threshold', 'AI ENGINE'], ['14:31:58', 'AI detection', 'Vehicle class entered geofence corridor', 'AI ENGINE'], ['14:30:44', 'Heartbeat', 'Node reported nominal health at 98%', 'SYSTEM'], ['13:48:10', 'Operator note', 'Camera context opened', 'COMMAND']].map(([time, title, text, actor]) => <div className="timeline-item" key={time}><span className="timeline-dot" /><div className="flex flex-wrap justify-between gap-2"><span className="text-xs font-semibold">{title}</span><span className="font-mono text-[10px] text-muted-foreground">{time} · {actor}</span></div><p className="mt-1 text-xs text-muted-foreground">{text}</p></div>)}</div></section></div><aside className="space-y-6"><section className="panel"><div className="border-b border-border px-5 py-4"><div className="eyebrow">NODE METADATA</div><h2 className="mt-1 text-base font-semibold">Trust and connectivity</h2></div><div className="divide-y divide-border">{[['Status', camera.status], ['Visible source', cameraRecordings[camera.id]?.visible ?? 'Unavailable'], ['Thermal source', cameraRecordings[camera.id]?.thermal ?? 'Unavailable'], ['Device certificate', 'Valid · 41 days'], ['mTLS channel', 'Established'], ['Firmware', 'PN-CAM 3.14.2'], ['Last heartbeat', camera.heartbeat]].map(([key, value]) => <div key={key} className="flex justify-between gap-3 px-5 py-3 text-xs"><span className="text-muted-foreground">{key}</span><span className="max-w-[60%] text-right font-medium break-all">{value}</span></div>)}</div></section><section className="panel p-5"><div className="eyebrow">AI ACTIVITY</div><div className="mt-4 flex items-end justify-between"><span className="text-3xl font-semibold">{camera.detections}</span><span className="text-xs text-muted-foreground">events / last 24h</span></div><div className="mini-bars mt-5">{[25,42,31,55,42,68,48,72,63,86,54,78].map((height,index)=><span key={index} style={{height:`${height}%`}} />)}</div><Link href="/admin/evidence" className="mt-5 block text-xs font-semibold text-[#71885b]">Inspect linked evidence <ArrowRight size={13} className="ml-1 inline" /></Link></section></aside></div></>;
 }
 
 function AdminIncidents() {
@@ -350,7 +756,7 @@ function OfficerWatch() {
   const [selected, setSelected] = useState(cameras[0]);
   const [thermal, setThermal] = useState(false);
   const sectorCameras = cameras.filter((camera) => camera.sector === 'Ladakh');
-  return <><PageHeader eyebrow="FIELD CONSOLE · LIVE INSTANCE" title="Camera watch" detail="Two cameras in your assigned Ladakh / North sector. Select a node and switch between visible and thermal recordings." action={<div className="flex items-center gap-2"><span className="status-label status-good"><span className="signal-pulse" /> Watch active</span><Button kind="secondary" testId="button-watch-refresh" onClick={() => window.alert('Assigned camera watch refreshed locally.') }><RefreshCw size={14} /> Refresh</Button></div>} /><div className="grid gap-5 xl:grid-cols-[1fr_310px]"><section className="feed-panel"><div className="feed-top"><span className="flex items-center gap-2"><span className="signal-pulse" /> {selected.id} · {selected.site} · {thermal ? 'THERMAL' : 'VISIBLE CCTV'}</span><span className="font-mono">LOCAL PLAYBACK</span></div><CameraFeed cameraId={selected.id} thermal={thermal} aiEnabled className="min-h-[440px]"/><div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#4c6449] bg-[#18271e] px-4 py-3 text-[#b9c9a1]"><div className="flex gap-2"><button onClick={() => setThermal(false)} className={cn('action-button action-quiet', !thermal && 'bg-[#40543d]')}><Video size={14}/> Visible CCTV</button><button onClick={() => setThermal(true)} className={cn('action-button action-quiet', thermal && 'bg-[#40543d]')}><Crosshair size={14}/> Thermal</button></div><span className="font-mono text-[10px]">LOCAL RECORDING · AI INFERENCE ACTIVE</span></div></section><aside className="panel"><div className="border-b border-border px-5 py-4"><div className="eyebrow">ASSIGNED NODES</div><h2 className="mt-1 text-base font-semibold">Select a feed</h2></div><div className="divide-y divide-border">{sectorCameras.map((camera) => <button key={camera.id} onClick={() => { setSelected(camera); setThermal(false); }} data-testid={`button-select-watch-${camera.id}`} className={cn('w-full px-5 py-4 text-left hover:bg-[#e8e5d3]', selected.id === camera.id && 'bg-[#e3e0c9]')}><div className="flex items-center justify-between gap-3"><div><div className="font-mono text-[10px] text-muted-foreground">{camera.id}</div><div className="mt-1 text-xs font-semibold">{camera.site}</div></div><StatusDot status={camera.status} /></div><div className="mt-2 flex items-center justify-between text-[9px] text-muted-foreground"><span>Health {camera.health}%</span><span>Thermal available</span></div></button>)}</div></aside></div></>;
+  return <><PageHeader eyebrow="FIELD CONSOLE · LIVE INSTANCE" title="Camera watch" detail="Two cameras in your assigned Ladakh / North sector. Select a node and switch between visible and thermal recordings." action={<div className="flex items-center gap-2"><span className="status-label status-good"><span className="signal-pulse" /> Watch active</span><Button kind="secondary" testId="button-watch-refresh" onClick={() => window.alert('Assigned camera watch refreshed locally.') }><RefreshCw size={14} /> Refresh</Button></div>} /><div className="grid gap-5 xl:grid-cols-[1fr_310px]"><section className="feed-panel"><div className="feed-top"><span className="flex items-center gap-2"><span className="signal-pulse" /> {selected.id} · {selected.site} · {thermal ? 'THERMAL' : 'VISIBLE CCTV'}</span><span className="font-mono">LOCAL PLAYBACK</span></div><CameraFeed cameraId={selected.id} thermal={thermal} aiEnabled className="min-h-[440px] h-[480px] xl:h-[520px]"/><div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#4c6449] bg-[#18271e] px-4 py-3 text-[#b9c9a1]"><div className="flex gap-2"><button onClick={() => setThermal(false)} className={cn('action-button action-quiet', !thermal && 'bg-[#40543d]')}><Video size={14}/> Visible CCTV</button><button onClick={() => setThermal(true)} className={cn('action-button action-quiet', thermal && 'bg-[#40543d]')}><Crosshair size={14}/> Thermal</button></div><span className="font-mono text-[10px]">LOCAL RECORDING · AI INFERENCE ACTIVE</span></div></section><aside className="panel"><div className="border-b border-border px-5 py-4"><div className="eyebrow">ASSIGNED NODES</div><h2 className="mt-1 text-base font-semibold">Select a feed</h2></div><div className="divide-y divide-border">{sectorCameras.map((camera) => <button key={camera.id} onClick={() => { setSelected(camera); setThermal(false); }} data-testid={`button-select-watch-${camera.id}`} className={cn('w-full px-5 py-4 text-left hover:bg-[#e8e5d3]', selected.id === camera.id && 'bg-[#e3e0c9]')}><div className="flex items-center justify-between gap-3"><div><div className="font-mono text-[10px] text-muted-foreground">{camera.id}</div><div className="mt-1 text-xs font-semibold">{camera.site}</div></div><StatusDot status={camera.status} /></div><div className="mt-2 flex items-center justify-between text-[9px] text-muted-foreground"><span>Health {camera.health}%</span><span>Thermal available</span></div></button>)}</div></aside></div></>;
 }
 function OfficerIncident() {
   const { id } = useParams<{ id: string }>();

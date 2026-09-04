@@ -5,7 +5,7 @@ import numpy as np
 import cv2
 
 app = FastAPI(title='Prahari Netra Local AI')
-app.add_middleware(CORSMiddleware, allow_origins=['http://localhost:5173','http://127.0.0.1:5173'], allow_methods=['*'], allow_headers=['*'])
+app.add_middleware(CORSMiddleware, allow_origins=['*'], allow_methods=['*'], allow_headers=['*'])
 model = YOLO('yolo11n.pt')
 VEHICLES = {'car','truck','bus','motorcycle'}
 
