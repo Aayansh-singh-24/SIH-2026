@@ -391,7 +391,101 @@ function AppShell({ mode, children }: { mode: Mode; children: ReactNode }) {
 
 function Home() {
   const [, setLocation] = useLocation();
-  return <div className="entry-screen min-h-[100dvh] overflow-hidden bg-[#253523] text-[#efe8d5]"><div className="entry-grain" /><div className="absolute inset-0 opacity-30"><div className="entry-grid h-full w-full" /></div><svg className="entry-map" viewBox="0 0 700 800" aria-hidden="true"><path d="M301 34l66 22 22 51 78 24 33 54 74 25 35 74-41 47 20 68-62 46 9 77-75 47-22 107-48-16-43 68-39-96-60-44-6-97-79-34-36-81 24-61-55-61 54-69 16-80 54-43 13-61z" /></svg><div className="relative z-10 flex min-h-[100dvh] flex-col px-6 py-7 md:px-12"><header className="flex items-start justify-between"><Wordmark light /><LocalStatus /></header><div className="my-auto grid max-w-6xl gap-12 py-20 lg:grid-cols-[1.2fr_.8fr] lg:items-center"><div className="max-w-3xl"><div className="eyebrow mb-6 text-[#b9c790]">TRUSTED BORDER INTELLIGENCE · 01 / ENTRY</div><h1 className="entry-title">See the line.<br /><em>Know the signal.</em></h1><p className="mt-7 max-w-xl text-base leading-7 text-[#b9c6ab]">A disciplined command network for authorized security operations teams. Geospatial awareness, AI detection, and evidence provenance — held in one accountable surface.</p><div className="mt-9 flex flex-wrap gap-3"><Button kind="primary" testId="button-enter-system" onClick={() => setLocation('/login')}>Enter secure system <ArrowRight size={16} /></Button><button className="border border-[#697957] px-4 py-2.5 text-xs text-[#c4cdb2] hover:bg-[#344631]" data-testid="button-read-brief" onClick={() => document.getElementById('entry-brief')?.scrollIntoView({ behavior: 'smooth' })}>Read system brief</button></div></div><div id="entry-brief" className="border-l border-[#73815d] pl-6 lg:ml-auto lg:max-w-sm"><div className="mb-5 font-mono text-[10px] tracking-[.2em] text-[#a6b28a]">SYSTEM CONDITION / LOCAL</div>{[['12', 'RECORDED CAMERA NODES'], ['08', 'BORDER SECTORS'], ['SHA-256', 'EVIDENCE CHAIN']].map(([a, b]) => <div key={b} className="mb-5 flex items-end justify-between border-b border-[#42523d] pb-4"><span className="font-mono text-2xl text-[#e7e1c7]">{a}</span><span className="text-right text-[10px] tracking-[.12em] text-[#a6b28a]">{b}</span></div>)}<div className="flex items-center gap-2 text-xs text-[#c7cfb5]"><span className="signal-pulse" /> All local systems nominal</div></div></div><footer className="flex flex-wrap items-end justify-between gap-5 border-t border-[#4d5e47] pt-5 text-[10px] text-[#93a082]"><span>LOCAL ENVIRONMENT · NO LIVE CCTV · NO GOVERNMENT DATA</span><span className="font-mono">BUILD 0.8.14 / INDIA REGION / UTC +05:30</span></footer></div></div>;
+  return (
+    <div className="entry-screen min-h-[100dvh] overflow-hidden bg-[#0c1a10] text-[#efe8d5]">
+      <div className="entry-grain" />
+      <div className="absolute inset-0 opacity-25"><div className="entry-grid h-full w-full" /></div>
+      <div className="relative z-10 flex min-h-[100dvh] flex-col">
+        {/* Header */}
+        <header className="flex items-start justify-between px-6 py-6 md:px-10">
+          <Wordmark light />
+        </header>
+
+        {/* Main hero area with map */}
+        <div className="flex-1 relative flex flex-col items-center justify-center px-6 pb-4">
+          {/* Radar rings */}
+          <div className="entry-radar-container">
+            <div className="entry-radar-ring entry-radar-ring-1" />
+            <div className="entry-radar-ring entry-radar-ring-2" />
+          </div>
+
+          {/* India map with proper state boundaries */}
+          <div className="entry-india-container">
+            <svg viewBox={indiaMap.viewBox} className="entry-india-svg" aria-hidden="true">
+              {indiaMap.locations.map((loc: { id: string; name: string; path: string }) => (
+                <path key={loc.id} d={loc.path} className="entry-state-path" />
+              ))}
+            </svg>
+            {/* Border sector labels */}
+            <div className="entry-map-label" style={{ top: '8%', left: '50%', transform: 'translateX(-50%)' }}>
+              <span className="entry-map-dot" /> LOC // NORTHERN SECTOR
+            </div>
+            <div className="entry-map-label" style={{ top: '32%', right: '5%' }}>
+              <span className="entry-map-dot" /> COMMAND
+            </div>
+            <div className="entry-map-label" style={{ top: '55%', left: '5%' }}>
+              <span className="entry-map-dot" /> WESTERN FRONTIER
+            </div>
+          </div>
+
+          {/* Hero text overlay */}
+          <div className="relative z-20 text-center max-w-4xl mx-auto">
+            <div className="eyebrow mb-5 flex items-center justify-center gap-2 text-[#4ade80]">
+              <span className="inline-block h-2 w-2 rounded-full bg-[#4ade80] shadow-[0_0_8px_#4ade80]" />
+              TRUSTED BORDER INTELLIGENCE
+            </div>
+            <h1 className="entry-title">SEE THE LINE:<br /><em>GUARD THE FRONTIER.</em></h1>
+            <div className="mt-10 flex flex-col items-center gap-5">
+              <button className="entry-cta" data-testid="button-enter-system" onClick={() => setLocation('/login')}>
+                ENTER WORKSPACE <ArrowRight size={16} />
+              </button>
+              <button
+                className="font-mono text-[11px] font-bold tracking-[.18em] text-[#86efac] uppercase hover:text-[#bbf7d0]"
+                data-testid="button-read-brief"
+                onClick={() => document.getElementById('entry-brief')?.scrollIntoView({ behavior: 'smooth' })}
+              >
+                SYSTEM BRIEF
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom stats section */}
+        <div id="entry-brief" className="relative z-20 px-6 pb-5 md:px-10">
+          <div className="mb-4 flex items-center gap-2 font-mono text-[10px] font-bold tracking-[.2em] text-[#4ade80]">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#4ade80] shadow-[0_0_6px_#4ade80]" />
+            SYSTEM CONDITION
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[['48', 'RECORDED NODES ACTIVE'], ['08', 'BORDER SECTORS MONITORED'], ['SHA-256', 'CRYPTOGRAPHIC CHAIN']].map(([val, label]) => (
+              <div key={label} className="entry-stat-card tactical-corner">
+                <span className="block font-mono text-2xl font-extrabold text-[#f0fdf4]">{val}</span>
+                <span className="block mt-1 font-mono text-[9px] font-bold tracking-[.12em] text-[#6b8a72] uppercase">{label}</span>
+              </div>
+            ))}
+            <div className="entry-stat-card tactical-corner">
+              <div className="flex items-center gap-2">
+                <span className="h-1.5 w-1.5 rounded-full bg-[#4ade80] shadow-[0_0_6px_#4ade80]" />
+                <span className="font-mono text-sm font-extrabold text-[#f0fdf4] uppercase">ALL OUTPOSTS NOMINAL</span>
+              </div>
+              <span className="block mt-1 font-mono text-[9px] font-bold tracking-[.12em] text-[#6b8a72] uppercase">AIR-GAP VERIFIED</span>
+            </div>
+          </div>
+          {/* 4-pointed star decorative element */}
+          <svg className="absolute right-10 bottom-16 opacity-30" width="48" height="48" viewBox="0 0 24 24" fill="#4b6350" aria-hidden="true">
+            <path d="M12 0 L13.5 10.5 L24 12 L13.5 13.5 L12 24 L10.5 13.5 L0 12 L10.5 10.5 Z" />
+          </svg>
+          <footer className="mt-6 flex flex-wrap items-end justify-between gap-5 border-t border-[#1c3022] pt-4 font-mono text-[10px] font-bold tracking-[.12em] text-[#4b6350]">
+            <span className="flex items-center gap-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#4ade80] shadow-[0_0_6px_#4ade80]" />
+              SEC-STATUS: SOVEREIGN DEFENSE ENVIRONMENT
+            </span>
+            <span>BUILD 0.8.14</span>
+          </footer>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function Login() {
