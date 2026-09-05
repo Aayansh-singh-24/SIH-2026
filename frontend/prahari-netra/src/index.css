@@ -707,10 +707,51 @@
   pointer-events: none;
 }
 .entry-india-svg {
+  position: relative;
+  z-index: 1;
   width: 52vmin;
   max-width: 540px;
   height: auto;
   filter: drop-shadow(0 0 24px rgba(34, 197, 94, 0.2));
+}
+.entry-orbit {
+  position: absolute;
+  z-index: 2;
+  width: min(66vmin, 650px);
+  height: min(43vmin, 420px);
+  border: 1px solid rgba(74, 222, 128, 0.12);
+  border-radius: 50%;
+  animation: entry-orbit-spin 10s linear infinite;
+}
+.entry-orbit span {
+  position: absolute;
+  top: 50%;
+  right: -4px;
+  width: 8px;
+  height: 8px;
+  margin-top: -4px;
+  border-radius: 50%;
+  background: #4ade80;
+  box-shadow: 0 0 8px #4ade80, 0 0 20px rgba(74, 222, 128, 0.8);
+}
+.entry-orbit-two {
+  width: min(61vmin, 600px);
+  height: min(56vmin, 540px);
+  border-color: rgba(74, 222, 128, 0.09);
+  animation-duration: 14s;
+  animation-direction: reverse;
+}
+.entry-orbit-two span { width: 6px; height: 6px; margin-top: -3px; }
+.entry-orbit-three {
+  width: min(75vmin, 720px);
+  height: min(34vmin, 330px);
+  border-color: rgba(74, 222, 128, 0.07);
+  animation-duration: 18s;
+}
+.entry-orbit-three span { width: 5px; height: 5px; margin-top: -2.5px; }
+@keyframes entry-orbit-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .entry-orbit { animation: none; }
 }
 .entry-state-path {
   fill: rgba(14, 36, 22, 0.6);

@@ -360,8 +360,8 @@ function AppShell({ mode, children }: { mode: Mode; children: ReactNode }) {
               <div className="font-mono text-[9px] text-[#86efac]">{isAdmin ? 'CLEARANCE: LEVEL-5 (TOP SECRET)' : 'FIELD OPERATOR · G2'}</div>
             </div>
           </div>
-          <Link href="/role-select" data-testid="link-switch-role" className="flex items-center gap-2 font-mono text-[11px] font-semibold text-[#8b9d90] hover:text-[#4ade80]">
-            <LogOut size={13} /> Switch operational role
+          <Link href="/login" data-testid="link-switch-role" className="flex items-center gap-2 font-mono text-[11px] font-semibold text-[#8b9d90] hover:text-[#4ade80]">
+            <LogOut size={13} /> Switch operator
           </Link>
         </div>
       </div>
@@ -490,60 +490,175 @@ function Home() {
 
 function Login() {
   const [, setLocation] = useLocation();
-  const [notice, setNotice] = useState('');
-  return <div className="auth-layout"><div className="auth-art"><Wordmark light /><div className="auth-art-copy"><div className="eyebrow text-[#b9c790]">AUTHORIZED ACCESS ONLY</div><h1>One surface.<br /><em>Clear accountability.</em></h1><p>Use the local localnstration environment to explore role-separated command and field workspaces.</p></div><div className="font-mono text-[10px] text-[#9da98b]">PN-LOCAL · AIR-GAPPED INSTANCE</div></div><div className="auth-panel"><div className="mb-12 flex items-center justify-between"><span className="eyebrow">SECURE SIGN-IN</span><Link href="/" data-testid="link-back-home" className="text-xs text-muted-foreground hover:text-foreground"><ArrowLeft size={14} className="mr-1 inline" /> Back</Link></div><div className="max-w-md"><h1 className="text-3xl font-semibold tracking-tight">Enter the secure instance</h1><p className="mt-3 text-sm leading-6 text-muted-foreground">This local instance is deterministic and runs entirely in your browser. No credentials are transmitted.</p><form className="mt-8 space-y-4" onSubmit={(event) => { event.preventDefault(); setNotice('Local identity accepted. Choose an operational workspace.'); setTimeout(() => setLocation('/role-select'), 400); }}><label className="field-label">Operator identifier<input data-testid="input-operator-id" className="field-input" autoComplete="username" defaultValue="operator.asrinivasan" /></label><label className="field-label">Access phrase<input data-testid="input-access-phrase" className="field-input" type="password" autoComplete="current-password" defaultValue="prahari-local" /></label><label className="flex items-start gap-3 text-xs text-muted-foreground"><input data-testid="input-system-acknowledgement" type="checkbox" className="mt-0.5 accent-[#71885b]" defaultChecked /> I understand this is fictional local data with no live surveillance connection.</label>{notice && <div className="border border-[#b27a3d]/40 bg-[#b27a3d]/10 px-3 py-2 text-xs text-[#8d5f2e]">{notice}</div>}<Button kind="primary" type="submit" testId="button-authenticate">Authenticate locally <ArrowRight size={16} /></Button></form><div className="mt-8 flex items-center gap-2 border-t border-border pt-5 text-[10px] text-muted-foreground"><LockKeyhole size={13} /> Browser-only session · evidence actions are local</div></div></div></div>;
-}
+  const [operatorId, setOperatorId] = useState('operator.admin');
+  const [accessVector, setAccessVector] = useState('prahari-local');
+  const [error, setError] = useState('');
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
 
-function RoleSelect() {
-  const [, setLocation] = useLocation();
-  const [selected, setSelected] = useState<Mode>('admin');
-  return <div className="min-h-[100dvh] bg-[#070e0a] px-5 py-7 text-[#eff7f1] md:px-12">
-    <div className="mx-auto flex max-w-6xl items-center justify-between">
-      <Wordmark light />
-      <Link href="/" data-testid="link-role-exit" className="font-mono text-xs text-[#86efac] hover:text-[#4ade80]">
-        Exit system
-      </Link>
-    </div>
-    <div className="mx-auto max-w-5xl py-20">
-      <div className="eyebrow">SESSION HANDOFF · 02 / OPERATIONAL ROLE</div>
-      <h1 className="mt-4 max-w-2xl text-4xl font-bold uppercase tracking-tight md:text-6xl text-[#f8fafc]">
-        Select Command Station
-      </h1>
-      <p className="mt-5 max-w-xl font-mono text-xs leading-relaxed text-[#94a3b8]">
-        Roles are strictly compartmented under national defense protocol. Command console monitors the aggregate border ORBAT; Ground console manages assigned post watch.
-      </p>
-      <div className="mt-12 grid gap-5 md:grid-cols-2">
-        <RoleCard mode="admin" selected={selected === 'admin'} onClick={() => setSelected('admin')} onEnter={() => setLocation('/admin')} />
-        <RoleCard mode="officer" selected={selected === 'officer'} onClick={() => setSelected('officer')} onEnter={() => setLocation('/officer')} />
-      </div>
-      <div className="mt-8 flex items-center justify-between border-t border-[#1b2d20] pt-5 text-[10px] text-[#86efac] font-mono">
-        <span>SECURITY PROTOCOL: ROLE ELEVATION LOGGED IN SHA-256 AUDIT LEDGER</span>
-        <span>SESSION // PN-SEC-7F2A</span>
-      </div>
-    </div>
-  </div>;
-}
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    const id = operatorId.trim().toLowerCase();
 
-function RoleCard({ mode, selected, onClick, onEnter }: { mode: Mode; selected: boolean; onClick: () => void; onEnter: () => void }) {
-  const admin = mode === 'admin';
-  return <div className={cn('role-card tactical-corner', selected && 'role-card-selected')} onClick={onClick} data-testid={`card-role-${mode}`}>
-    <div className="flex items-start justify-between">
-      <span className={cn('role-icon', admin ? 'role-icon-admin' : 'role-icon-officer')}>
-        {admin ? <MonitorCog size={25} /> : <Crosshair size={25} />}
-      </span>
-      <span className={cn('h-4 w-4 rounded-full border-2', selected ? 'border-[#22c55e] bg-[#22c55e] shadow-[0_0_8px_#22c55e]' : 'border-[#2d4734]')} />
+    if (id === 'operator.admin' || id === 'admin' || id === 'operator.asrinivasan') {
+      setIsAuthenticating(true);
+      setTimeout(() => {
+        setLocation('/admin');
+      }, 250);
+    } else if (id === 'operator.officer' || id === 'officer' || id === 'operator.rdorje' || id === 'operator.dorje') {
+      setIsAuthenticating(true);
+      setTimeout(() => {
+        setLocation('/officer');
+      }, 250);
+    } else {
+      setIsAuthenticating(false);
+      setError('INVALID OPERATOR ID · ACCESS DENIED (Use operator.admin or operator.officer)');
+    }
+  };
+
+  return (
+    <div
+      className="relative min-h-[100dvh] w-full flex flex-col items-center justify-center p-4 sm:p-6 overflow-hidden select-none"
+      style={{
+        backgroundColor: '#020503',
+        backgroundImage: `
+          radial-gradient(ellipse 60% 50% at 50% 38%, rgba(0, 230, 118, 0.12) 0%, rgba(1, 15, 8, 0.45) 45%, rgba(2, 5, 3, 0.95) 80%, #020503 100%),
+          linear-gradient(rgba(0, 255, 128, 0.08) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(0, 255, 128, 0.08) 1px, transparent 1px)
+        `,
+        backgroundSize: '100% 100%, 32px 32px, 32px 32px',
+      }}
+    >
+      {/* Central Login Container */}
+      <div className="relative z-10 w-full max-w-[430px] flex flex-col items-center">
+        {/* Top Glowing Security Icon Badge */}
+        <div className="relative mb-3 flex items-center justify-center">
+          <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-[#00e676]/40 bg-[#06180e] shadow-[0_0_24px_rgba(0,230,118,0.35)]">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className="text-[#00e676]">
+              <path
+                d="M12 2.5L20 7.2V16.8L12 21.5L4 16.8V7.2L12 2.5Z"
+                stroke="#00e676"
+                strokeWidth="1.75"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <circle cx="12" cy="12" r="3.2" stroke="#00e676" strokeWidth="1.5" />
+              <circle cx="12" cy="12" r="1.1" fill="#00e676" />
+            </svg>
+          </div>
+        </div>
+
+        {/* Defense Command Network Subtitle */}
+        <div className="font-mono text-[10px] sm:text-[11px] font-bold tracking-[0.22em] text-[#00e676] uppercase">
+          • DEFENSE COMMAND NETWORK
+        </div>
+
+        {/* PRAHARI NETRA Title */}
+        <h1 className="mt-2 text-2xl sm:text-3xl md:text-[34px] font-extrabold tracking-[0.12em] text-white uppercase text-center drop-shadow-[0_2px_12px_rgba(0,0,0,0.8)]">
+          PRAHARI NETRA
+        </h1>
+
+        {/* Card with 4 Sci-Fi Corner Brackets */}
+        <div className="relative mt-6 w-full rounded-[2px] border border-[#143320] bg-[#05110a]/90 p-7 sm:p-8 backdrop-blur-xs shadow-[0_0_40px_rgba(0,230,118,0.06)]">
+          {/* 4 Sci-Fi Corner Brackets */}
+          <span className="absolute -top-[5px] -left-[5px] h-3.5 w-3.5 border-t-2 border-l-2 border-[#00e676] pointer-events-none" />
+          <span className="absolute -top-[5px] -right-[5px] h-3.5 w-3.5 border-t-2 border-r-2 border-[#00e676] pointer-events-none" />
+          <span className="absolute -bottom-[5px] -left-[5px] h-3.5 w-3.5 border-b-2 border-l-2 border-[#00e676] pointer-events-none" />
+          <span className="absolute -bottom-[5px] -right-[5px] h-3.5 w-3.5 border-b-2 border-r-2 border-[#00e676] pointer-events-none" />
+
+          {/* Card Heading */}
+          <h2 className="text-base sm:text-[17px] font-bold text-white tracking-wide">
+            Enter the secure instance
+          </h2>
+
+          <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
+            {error && (
+              <div className="flex items-center gap-2 rounded-[2px] border border-[#ef4444]/50 bg-[#2b0c0c]/80 px-3 py-2 font-mono text-[10px] sm:text-[11px] text-[#fca5a5]">
+                <AlertTriangle size={13} className="shrink-0 text-[#ef4444]" />
+                <span>{error}</span>
+              </div>
+            )}
+
+            {/* Operator ID Field */}
+            <div>
+              <label
+                htmlFor="operator-id-input"
+                className="block font-mono text-[10px] font-bold tracking-wider text-[#00e676] uppercase mb-2"
+              >
+                OPERATOR ID
+              </label>
+              <input
+                id="operator-id-input"
+                data-testid="input-operator-id"
+                type="text"
+                value={operatorId}
+                onChange={(e) => {
+                  setOperatorId(e.target.value);
+                  if (error) setError('');
+                }}
+                autoComplete="username"
+                className="w-full h-11 px-3.5 rounded-[2px] border border-[#153a23] bg-[#030906] font-mono text-xs sm:text-[13px] text-[#e2e8f0] tracking-normal focus:border-[#00e676] focus:shadow-[0_0_10px_rgba(0,230,118,0.25)] focus:outline-none transition-all"
+              />
+            </div>
+
+            {/* Access Vector Field */}
+            <div>
+              <label
+                htmlFor="access-vector-input"
+                className="block font-mono text-[10px] font-bold tracking-wider text-[#00e676] uppercase mb-2"
+              >
+                ACCESS VECTOR
+              </label>
+              <input
+                id="access-vector-input"
+                data-testid="input-access-phrase"
+                type="password"
+                value={accessVector}
+                onChange={(e) => setAccessVector(e.target.value)}
+                autoComplete="current-password"
+                className="w-full h-11 px-3.5 rounded-[2px] border border-[#153a23] bg-[#030906] font-mono text-xs sm:text-[13px] text-[#e2e8f0] tracking-widest focus:border-[#00e676] focus:shadow-[0_0_10px_rgba(0,230,118,0.25)] focus:outline-none transition-all"
+              />
+            </div>
+
+            {/* Authenticate Button */}
+            <button
+              type="submit"
+              data-testid="button-authenticate"
+              disabled={isAuthenticating}
+              className="mt-6 flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-[2px] bg-[#00e676] font-mono text-xs font-bold tracking-[0.15em] text-[#02180c] uppercase shadow-[0_0_22px_rgba(0,230,118,0.45)] transition-all hover:bg-[#10f084] hover:shadow-[0_0_28px_rgba(0,230,118,0.6)] active:scale-[0.99]"
+            >
+              {isAuthenticating ? 'AUTHENTICATING…' : 'AUTHENTICATE  →'}
+            </button>
+          </form>
+
+          {/* Under Button Note */}
+          <div className="mt-5 flex items-center justify-center gap-1.5 font-mono text-[10px] sm:text-[11px] text-[#4d785a]">
+            <LockKeyhole size={12} className="shrink-0 text-[#3f6d4d]" />
+            <span>Browser-only session · evidence actions are local</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Exit Button - Bottom Left */}
+      <div className="fixed bottom-6 left-6 z-20">
+        <button
+          type="button"
+          data-testid="link-back-home"
+          onClick={() => setLocation('/')}
+          className="cursor-pointer rounded-[2px] border border-[#ef4444]/60 bg-[#160505]/40 px-3.5 py-1.5 font-mono text-[10px] font-bold tracking-wider text-[#ef4444] uppercase transition-all hover:border-[#ef4444] hover:bg-[#ef4444]/15 hover:shadow-[0_0_12px_rgba(239,68,68,0.35)]"
+        >
+          EXIT
+        </button>
+      </div>
+
+      {/* Bottom Footer Text - Centered */}
+      <div className="fixed bottom-6 inset-x-0 z-10 flex justify-center pointer-events-none">
+        <span className="flex items-center gap-1.5 font-mono text-[10px] font-semibold tracking-[0.2em] text-[#00e676]/90">
+          • PN-LOCAL · AIR-GAPPED INSTANCE
+        </span>
+      </div>
     </div>
-    <div className="mt-8">
-      <div className="eyebrow">{admin ? 'DEFENSE C4ISR COMMAND' : 'BORDER SECTOR POST'}</div>
-      <h2 className="mt-2 text-2xl font-extrabold uppercase text-[#f8fafc]">{admin ? 'Admin Command' : 'Ground Officer'}</h2>
-      <p className="mt-3 min-h-[48px] font-mono text-xs leading-relaxed text-[#94a3b8]">
-        {admin ? 'Full multi-sector surveillance, incident review, health diagnostics, and evidentiary proof verification.' : 'Sector camera telemetry, alert acknowledgment, field evidence recording, and incident escalation.'}
-      </p>
-    </div>
-    <button className="mt-7 flex items-center gap-2 font-mono text-xs font-bold text-[#4ade80] hover:text-[#86efac]" data-testid={`button-enter-role-${mode}`} onClick={(event) => { event.stopPropagation(); onEnter(); }}>
-      Enter Station <ArrowRight size={14} />
-    </button>
-  </div>;
+  );
 }
 
 function AdminOverview() {
@@ -880,7 +995,7 @@ function OfficerAlerts() {
 
 
 function Router() {
-  return <Switch><Route path="/" component={Home} /><Route path="/login" component={Login} /><Route path="/role-select" component={RoleSelect} /><Route path="/admin"><AppShell mode="admin"><AdminOverview /></AppShell></Route><Route path="/admin/map"><AppShell mode="admin"><AdminMap /></AppShell></Route><Route path="/admin/cameras/:id"><AppShell mode="admin"><CameraDetail /></AppShell></Route><Route path="/admin/cameras"><AppShell mode="admin"><AdminCameras /></AppShell></Route><Route path="/admin/incidents"><AppShell mode="admin"><AdminIncidents /></AppShell></Route><Route path="/admin/evidence"><AppShell mode="admin"><AdminEvidence /></AppShell></Route><Route path="/admin/analytics"><AppShell mode="admin"><AdminAnalytics /></AppShell></Route><Route path="/admin/health"><AppShell mode="admin"><AdminHealth /></AppShell></Route><Route path="/admin/access"><AppShell mode="admin"><AdminAccess /></AppShell></Route><Route path="/officer"><AppShell mode="officer"><OfficerHome /></AppShell></Route><Route path="/officer/watch"><AppShell mode="officer"><OfficerWatch /></AppShell></Route><Route path="/officer/alerts"><AppShell mode="officer"><OfficerAlerts /></AppShell></Route><Route path="/officer/incidents/:id"><AppShell mode="officer"><OfficerIncident /></AppShell></Route><Route path="/officer/evidence"><AppShell mode="officer"><OfficerEvidence /></AppShell></Route><Route path="/officer/map"><AppShell mode="officer"><OfficerMap /></AppShell></Route><Route><NotFound /></Route></Switch>;
+  return <Switch><Route path="/" component={Home} /><Route path="/login" component={Login} /><Route path="/role-select"><Login /></Route><Route path="/admin"><AppShell mode="admin"><AdminOverview /></AppShell></Route><Route path="/admin/map"><AppShell mode="admin"><AdminMap /></AppShell></Route><Route path="/admin/cameras/:id"><AppShell mode="admin"><CameraDetail /></AppShell></Route><Route path="/admin/cameras"><AppShell mode="admin"><AdminCameras /></AppShell></Route><Route path="/admin/incidents"><AppShell mode="admin"><AdminIncidents /></AppShell></Route><Route path="/admin/evidence"><AppShell mode="admin"><AdminEvidence /></AppShell></Route><Route path="/admin/analytics"><AppShell mode="admin"><AdminAnalytics /></AppShell></Route><Route path="/admin/health"><AppShell mode="admin"><AdminHealth /></AppShell></Route><Route path="/admin/access"><AppShell mode="admin"><AdminAccess /></AppShell></Route><Route path="/officer"><AppShell mode="officer"><OfficerHome /></AppShell></Route><Route path="/officer/watch"><AppShell mode="officer"><OfficerWatch /></AppShell></Route><Route path="/officer/alerts"><AppShell mode="officer"><OfficerAlerts /></AppShell></Route><Route path="/officer/incidents/:id"><AppShell mode="officer"><OfficerIncident /></AppShell></Route><Route path="/officer/evidence"><AppShell mode="officer"><OfficerEvidence /></AppShell></Route><Route path="/officer/map"><AppShell mode="officer"><OfficerMap /></AppShell></Route><Route><NotFound /></Route></Switch>;
 }
 
 function NotFound() {
